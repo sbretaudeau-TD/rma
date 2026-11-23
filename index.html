@@ -35,8 +35,9 @@ button{font:inherit;font-weight:700;margin-top:14px;padding:12px 20px;border:0;b
   function pret(code) {
     try { history.replaceState(null, '', location.pathname + '?go'); } catch (e) {}
     afficher('<h1>Code enregistré</h1><p>Pour créer l\'icône : menu <b>⋮</b> de Chrome → <b>Ajouter à l\'écran d\'accueil</b>.</p>' +
-      '<p class="mut">Ensuite, toucher l\'icône ouvrira RMA directement.</p><button id="go">Ouvrir RMA maintenant</button>');
+      '<p class="mut">Ensuite, toucher l\'icône ouvrira RMA directement.</p><button id="go">Ouvrir RMA maintenant</button><button id="chg" class="lien">Changer de code</button>');
     document.getElementById('go').onclick = function () { chercher(code); };
+    document.getElementById('chg').onclick = function () { try { localStorage.removeItem(CLE); } catch (e) {} demanderCode(); };
   }
 
   function chercher(code) {
