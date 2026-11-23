@@ -14,6 +14,7 @@ button{font:inherit;font-weight:700;margin-top:14px;padding:12px 20px;border:0;b
 <script src="panneau.js"></script>
 <script>
 (function () {
+  var AUTO = /[?&]go\b/.test(location.search);
   var CLE = 'rma_code', ecran = document.getElementById('ecran'), essais = 0, MAX = 60; // 60 x 3 s = 3 min d'attente du PC
   function lireCode() { try { return localStorage.getItem(CLE); } catch (e) { return null; } }
   function afficher(html) { ecran.innerHTML = html; }
@@ -26,8 +27,16 @@ button{font:inherit;font-weight:700;margin-top:14px;padding:12px 20px;border:0;b
       var c = document.getElementById('code').value.replace(/\s+/g, '').toUpperCase();
       if (!/^[A-Z0-9]{6,16}$/.test(c)) return demanderCode('Code invalide : 6 à 16 lettres ou chiffres.');
       try { localStorage.setItem(CLE, c); } catch (e) { /* stockage bloqué : marche pour cette fois */ }
-      chercher(c);
+      AUTO ? chercher(c) : pret(c);
     };
+  }
+
+  // Sans « ?go », on reste ici le temps d'ajouter l'icône : elle enregistre l'adresse avec « ?go », qui ouvre RMA direct.
+  function pret(code) {
+    try { history.replaceState(null, '', location.pathname + '?go'); } catch (e) {}
+    afficher('<h1>Code enregistré</h1><p>Pour créer l\'icône : menu <b>⋮</b> de Chrome → <b>Ajouter à l\'écran d\'accueil</b>.</p>' +
+      '<p class="mut">Ensuite, toucher l\'icône ouvrira RMA directement.</p><button id="go">Ouvrir RMA maintenant</button>');
+    document.getElementById('go').onclick = function () { chercher(code); };
   }
 
   function chercher(code) {
@@ -49,7 +58,7 @@ button{font:inherit;font-weight:700;margin-top:14px;padding:12px 20px;border:0;b
   }
 
   var c = lireCode();
-  if (c) chercher(c); else demanderCode();
+  if (!c) demanderCode(); else if (AUTO) chercher(c); else pret(c);
 })();
 </script>
 </body></html>
