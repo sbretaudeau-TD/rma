@@ -1,0 +1,16 @@
+{
+  "name": "RMA fixe",
+  "short_name": "RMA fixe",
+  "description": "RMATool Mobile : retrouve tout seul RMA Tool Center sur le PC pro",
+  "start_url": "./?go",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#000000",
+  "theme_color": "#0b5cad",
+  "lang": "fr",
+  "icons": [
+    { "src": "icone-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icone-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}
