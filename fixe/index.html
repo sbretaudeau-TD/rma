@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>RMA fixe</title>
+<meta name="theme-color" content="#0b5cad">
+<style>
+body{margin:0;font:18px/1.45 system-ui,sans-serif;background:#f6f7f9;color:#1b1f24;display:flex;min-height:100vh;align-items:center;justify-content:center}
+main{max-width:420px;padding:24px 16px;text-align:center}
+h1{font-size:1.4rem;margin:0 0 12px}
+input{font:inherit;font-size:1.3rem;letter-spacing:.15em;text-transform:uppercase;text-align:center;width:100%;box-sizing:border-box;padding:12px;border:2px solid #9aa4b1;border-radius:10px}
+button{font:inherit;font-weight:700;margin-top:14px;padding:12px 20px;border:0;border-radius:10px;background:#0b5cad;color:#fff;width:100%}
+.lien{background:none;color:#5b6470;font-weight:400;text-decoration:underline;width:auto}
+.err{color:#c62828}.mut{color:#5b6470;font-size:.95rem}
+/* icône fixe (26/11) : RMA est affiché DANS cette page ; l'adresse du tunnel peut changer, l'icône jamais */
+#rma{position:fixed;inset:0;width:100%;height:100%;border:0;background:#000}
+#bandeau{position:fixed;left:8px;right:8px;top:8px;z-index:2;background:#fff4d6;color:#5c4400;border-radius:10px;padding:10px 12px;font-size:15px;text-align:center}
+</style></head><body><main id="ecran"><p class="mut">Chargement...</p></main>
+<script src="panneau.js?v=4"></script>
+<script>
+(function () {
+  var AUTO = /[?&]go\b/.test(location.search);
+  var CLE = 'rma_code', ecran = document.getElementById('ecran'), essais = 0, MAX = 60; // 60 x 3 s = 3 min d'attente du PC
+  function lireCode() { try { return localStorage.getItem(CLE); } catch (e) { return null; } }
+  function afficher(html) { ecran.innerHTML = html; }
+
+  function demanderCode(msg) {
+    afficher('<h1>RMA : première fois</h1><p class="mut">Tape le code d\'appairage affiché sur le PC (RMA Tool Center, onglet « Téléphone »). Une seule fois.</p>' +
+      (msg ? '<p class="err">' + msg + '</p>' : '') +
+      '<input id="code" autocomplete="off" autocapitalize="characters" spellcheck="false"><button id="ok">Valider</button>');
+    document.getElementById('ok').onclick = function () {
+      var c = document.getElementById('code').value.replace(/\s+/g, '').toUpperCase();
+      if (!/^[A-Z0-9]{6,16}$/.test(c)) return demanderCode('Code invalide : 6 à 16 lettres ou chiffres.');
+      try { localStorage.setItem(CLE, c); } catch (e) { /* stockage bloqué : marche pour cette fois */ }
+      AUTO ? chercher(c) : pret(c);
+    };
+  }
+
+  // Sans « ?go », on reste ici le temps d'ajouter l'icône : elle enregistre l'adresse avec « ?go », qui ouvre RMA direct.
+  function pret(code) {
+    try { history.replaceState(null, '', location.pathname + '?go'); } catch (e) {}
+    afficher('<h1>Code enregistré</h1><p>Pour créer l\'icône : menu <b>⋮</b> de Chrome → <b>Ajouter à l\'écran d\'accueil</b>.</p>' +
+      '<p class="mut">Ensuite, toucher l\'icône ouvrira RMA directement.</p><button id="go">Ouvrir RMA maintenant</button><button id="chg" class="lien">Changer de code</button>');
+    document.getElementById('go').onclick = function () { chercher(code); };
+    document.getElementById('chg').onclick = function () { try { localStorage.removeItem(CLE); } catch (e) {} demanderCode(); };
+  }
+
+  function chercher(code) {
+    afficher('<h1>Recherche du PC...</h1><p class="mut">Si ce n\'est pas fait : double-clic sur LANCER-TELEPHONE-SANS-CABLE sur le PC pro.</p>');
+    RMAPanneau.derniereAdresse(code).then(function (u) {
+      if (u) return afficherRma(u, code);
+      if (++essais < MAX) return setTimeout(function () { chercher(code); }, 3000);
+      attente('Le PC n\'a pas publié d\'adresse. Lance LANCER-TELEPHONE-SANS-CABLE sur le PC, puis réessaie. Si le code d\'appairage a changé, change-le ci-dessous.');
+    }).catch(function (e) {
+      if (++essais < MAX) return setTimeout(function () { chercher(code); }, 3000);
+      attente('Pas de réseau ou service injoignable (' + e.message + ').');
+    });
+  }
+
+  // RMA dans un cadre (allow="camera" : la caméra en direct marche dedans). Toutes les 20 s on vérifie que le PC répond ;
+  // s'il a redémarré (mise à jour), on va chercher sa nouvelle adresse et on recharge le cadre, sans rien toucher sur le téléphone.
+  var veille = null;
+  function afficherRma(u, code) {
+    document.body.style.display = 'block';
+    var f = document.getElementById('rma');
+    if (!f) { ecran.style.display = 'none'; f = document.createElement('iframe'); f.id = 'rma'; f.setAttribute('allow', 'camera; autoplay; clipboard-write'); document.body.appendChild(f); }
+    if (f.dataset.u !== u) { f.dataset.u = u; f.src = u + '/m/#c=' + code; }
+    var b = document.getElementById('bandeau'); if (b) b.remove();
+    clearInterval(veille); var rates = 0;
+    veille = setInterval(function () {
+      RMAPanneau.vivant(u).then(function (ok) {
+        if (ok) { rates = 0; return; }
+        if (++rates < 2) return;                    // deux échecs de suite : le PC a vraiment changé d'adresse ou s'est arrêté
+        clearInterval(veille);
+        if (!document.getElementById('bandeau')) { var d = document.createElement('div'); d.id = 'bandeau'; d.textContent = 'RMA Tool redémarre sur le PC : reconnexion automatique…'; document.body.appendChild(d); }
+        (function relancer() {
+          RMAPanneau.derniereAdresse(code).then(function (n) { if (n) afficherRma(n, code); else setTimeout(relancer, 5000); })
+            .catch(function () { setTimeout(relancer, 5000); });
+        })();
+      });
+    }, 20000);
+  }
+
+  function attente(msg) {
+    afficher('<h1>PC introuvable</h1><p class="err">' + msg + '</p><button id="re">Réessayer</button><button id="chg" class="lien">Changer de code</button>');
+    document.getElementById('re').onclick = function () { essais = 0; chercher(lireCode()); };
+    document.getElementById('chg').onclick = function () { try { localStorage.removeItem(CLE); } catch (e) {} demanderCode(); };
+  }
+
+  var c = lireCode();
+  if (!c) demanderCode(); else if (AUTO) chercher(c); else pret(c);
+})();
+</script>
+</body></html>
